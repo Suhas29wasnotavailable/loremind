@@ -1,0 +1,29 @@
+# Without this the build context includes ~1.9GB of virtualenvs, which are
+# reinstalled inside the image anyway.
+venv/
+.venv/
+backend/venv/
+env/
+
+__pycache__/
+*.py[cod]
+
+# Rebuilt during the image build
+.qdrant_local/
+qdrant_storage/
+.cache/
+
+.git/
+.gitignore
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.md
+!README-hf.md
+
+# Dev-only helpers
+calibrate.py
+regression_test.py
+verify_retrieval.py

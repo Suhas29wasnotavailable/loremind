@@ -1,0 +1,27 @@
+# Virtualenvs — the repo previously carried two byte-identical 950MB copies
+venv/
+.venv/
+backend/venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Embedded Qdrant index — rebuilt from the corpus at startup
+.qdrant_local/
+qdrant_storage/
+
+# Model cache
+.cache/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store

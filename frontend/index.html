@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en">
+
+<head>
+
+<meta charset="utf-8"/>
+
+<meta
+    content="width=device-width, initial-scale=1.0"
+    name="viewport"
+/>
+
+<title>LOREMIND | Cosmic Solitude</title>
+
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+<link
+    href="https://fonts.googleapis.com/css2?family=News+Cycle:wght@700&family=JetBrains+Mono:wght@400;500&family=Libre+Caslon+Text:wght@400;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    rel="stylesheet"
+/>
+
+<style>
+
+body {
+
+    background-color: #000000;
+
+    overflow: hidden;
+
+    height: 100vh;
+    width: 100vw;
+
+    margin: 0;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+}
+
+/* =========================
+   STARFIELD
+========================= */
+
+.star-container {
+
+    position: fixed;
+
+    top: 0;
+    left: 0;
+
+    width: 100%;
+    height: 100%;
+
+    pointer-events: none;
+
+    z-index: 0;
+
+    background: #000000;
+}
+
+.star {
+
+    position: absolute;
+
+    background: white;
+
+    border-radius: 50%;
+
+    opacity: 0;
+
+    animation:
+        twinkle var(--duration)
+        infinite ease-in-out;
+}
+
+@keyframes twinkle {
+
+    0%, 100% {
+
+        opacity: 0.1;
+
+        transform: scale(0.8);
+    }
+
+    50% {
+
+        opacity: 0.8;
+
+        transform: scale(1.1);
+    }
+}
+
+/* =========================
+   GRAIN
+========================= */
+
+.grain-overlay {
+
+    position: fixed;
+
+    top: 0;
+    left: 0;
+
+    width: 100%;
+    height: 100%;
+
+    pointer-events: none;
+
+    z-index: 50;
+
+    opacity: 0.04;
+
+    background-image:
+        url("https://www.transparenttextures.com/patterns/stardust.png");
+}
+
+/* =========================
+   PERSPECTIVE
+========================= */
+
+.perspective-container {
+
+    perspective: 250px;
+
+    transform-style: preserve-3d;
+}
+
+/* =========================
+   LOGO
+========================= */
+
+.star-wars-logo {
+
+    transform:
+        rotateX(45deg)
+        translateZ(-50px);
+
+    transform-origin: 50% 100%;
+
+    display: inline-block;
+
+    text-align: center;
+
+    transition:
+        all 1.2s ease;
+}
+
+.logo-transition {
+
+    opacity: 0;
+
+    transform:
+        scale(0.5)
+        translateY(-160px)
+        rotateX(45deg);
+}
+
+.logo-text {
+
+    color: #FFE41F;
+
+    font-family: 'News Cycle', sans-serif;
+
+    text-shadow:
+        0 0 10px rgba(255, 228, 31, 0.3);
+
+    font-size: 72px;
+
+    line-height: 1;
+
+    font-weight: 700;
+
+    letter-spacing: -0.08em;
+}
+
+@media (min-width: 768px) {
+
+    .logo-text {
+
+        font-size: 110px;
+    }
+}
+
+input::placeholder {
+
+    opacity: 0.5;
+}
+
+/* =========================
+   MAIN SHELL HIDE
+========================= */
+
+#main-shell {
+
+    transition: opacity 1.2s ease, transform 1.2s ease;
+}
+
+#main-shell.shell-hidden {
+
+    opacity: 0;
+
+    pointer-events: none;
+
+    transform: scale(0.95) translateY(-10px);
+}
+
+/* =========================
+   CRAWL
+========================= */
+
+#crawl-section {
+
+    position: fixed;
+
+    inset: 0;
+
+    z-index: 20;
+
+    display: none;
+
+    overflow: hidden;
+
+    pointer-events: none;
+
+    -webkit-mask-image: linear-gradient(
+        to top,
+        transparent 0%,
+        black 12%,
+        black 75%,
+        transparent 100%
+    );
+    mask-image: linear-gradient(
+        to top,
+        transparent 0%,
+        black 12%,
+        black 75%,
+        transparent 100%
+    );
+}
+
+/* The perspective container — deep vanishing point like the films */
+#crawl-perspective {
+
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+
+    height: 100%;
+
+    perspective: 250px;
+    perspective-origin: 50% 18%;
+
+    overflow: hidden;
+}
+
+/* The tilted plane — unchanged from original */
+#crawl-text-plane {
+
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+
+    width: 58%;
+    max-width: 900px;
+
+    transform-origin: 50% 100%;
+    transform-style: preserve-3d;
+}
+
+#crawl-text {
+
+    width: 100%;
+
+    color: #c8a951;
+
+    font-family: 'Libre Caslon Text', Georgia, serif;
+
+    font-size: clamp(20px, 2.6vw, 38px);
+
+    font-weight: 400;
+
+    font-style: italic;
+
+    line-height: 1.85;
+
+    text-align: center;
+
+    letter-spacing: 0.04em;
+
+    transform-origin: 50% 100%;
+
+    padding-bottom: 100vh;
+
+    text-shadow: 0 0 8px rgba(200, 169, 81, 0.3);
+}
+
+/* =========================
+   NEW QUERY BUTTON
+========================= */
+
+#new-query-btn {
+
+    position: fixed;
+
+    bottom: 40px;
+
+    left: 50%;
+
+    transform: translateX(-50%);
+
+    z-index: 40;
+
+    display: none;
+
+    font-family: 'JetBrains Mono', monospace;
+
+    font-size: 11px;
+
+    letter-spacing: 0.3em;
+
+    text-transform: uppercase;
+
+    color: rgba(255, 255, 255, 0.25);
+
+    background: transparent;
+
+    border: 1px solid rgba(255, 255, 255, 0.1);
+
+    border-radius: 9999px;
+
+    padding: 10px 28px;
+
+    cursor: pointer;
+
+    transition: color 0.3s ease, border-color 0.3s ease;
+
+    pointer-events: all;
+}
+
+#new-query-btn:hover {
+
+    color: rgba(255, 228, 31, 0.7);
+
+    border-color: rgba(255, 228, 31, 0.3);
+}
+
+/* =========================
+   TRANSMISSION (loading)
+
+   The original build showed nothing at all between the shell fading out and
+   the crawl beginning — a black screen for the whole generation. This gives
+   the stream somewhere to land so progress is visible immediately.
+========================= */
+
+#transmission {
+
+    position: fixed;
+
+    inset: 0;
+
+    z-index: 30;
+
+    display: none;
+
+    flex-direction: column;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: 0 10vw;
+
+    pointer-events: none;
+
+    text-align: center;
+}
+
+#transmission-label {
+
+    font-family: 'JetBrains Mono', monospace;
+
+    font-size: 11px;
+
+    letter-spacing: 0.42em;
+
+    text-transform: uppercase;
+
+    color: rgba(255, 228, 31, 0.55);
+
+    margin-bottom: 26px;
+}
+
+#transmission-label::after {
+
+    content: '';
+
+    animation: dots 1.4s steps(4, end) infinite;
+}
+
+@keyframes dots {
+    0%   { content: ''; }
+    25%  { content: '.'; }
+    50%  { content: '..'; }
+    75%  { content: '...'; }
+}
+
+#transmission-stream {
+
+    font-family: 'Libre Caslon Text', Georgia, serif;
+
+    font-style: italic;
+
+    font-size: clamp(14px, 1.5vw, 20px);
+
+    line-height: 1.8;
+
+    color: rgba(200, 169, 81, 0.5);
+
+    max-width: 720px;
+
+    min-height: 5.4em;
+
+    /* Fade the older text out so it reads as an incoming transmission. */
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 55%);
+    mask-image: linear-gradient(to bottom, transparent 0%, black 55%);
+}
+
+/* =========================
+   STATIC ANSWER
+
+   Short replies (notably "the archives contain little information") get shown
+   plainly. Crawling one sentence for 45 seconds is not a reading experience.
+========================= */
+
+#static-answer {
+
+    position: fixed;
+
+    inset: 0;
+
+    z-index: 25;
+
+    display: none;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: 0 12vw;
+
+    text-align: center;
+
+    font-family: 'Libre Caslon Text', Georgia, serif;
+
+    font-style: italic;
+
+    font-size: clamp(18px, 2.1vw, 30px);
+
+    line-height: 1.8;
+
+    color: #c8a951;
+
+    text-shadow: 0 0 8px rgba(200, 169, 81, 0.3);
+}
+
+/* =========================
+   SOURCES
+
+   Retrieved fragments were previously computed, streamed to the browser, and
+   discarded. Surfacing them is what makes an archive answer checkable.
+========================= */
+
+#sources-toggle {
+
+    position: fixed;
+
+    bottom: 40px;
+
+    right: 34px;
+
+    z-index: 40;
+
+    display: none;
+
+    font-family: 'JetBrains Mono', monospace;
+
+    font-size: 10px;
+
+    letter-spacing: 0.28em;
+
+    text-transform: uppercase;
+
+    color: rgba(255, 255, 255, 0.22);
+
+    background: transparent;
+
+    border: 1px solid rgba(255, 255, 255, 0.09);
+
+    border-radius: 9999px;
+
+    padding: 9px 20px;
+
+    cursor: pointer;
+
+    transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+#sources-toggle:hover {
+
+    color: rgba(255, 228, 31, 0.65);
+
+    border-color: rgba(255, 228, 31, 0.28);
+}
+
+#sources-panel {
+
+    position: fixed;
+
+    inset: auto 0 0 0;
+
+    z-index: 45;
+
+    max-height: 52vh;
+
+    overflow-y: auto;
+
+    display: none;
+
+    padding: 30px 34px 96px;
+
+    background: linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.97) 0%,
+        rgba(0, 0, 0, 0.9) 70%,
+        transparent 100%
+    );
+
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.source-card {
+
+    max-width: 900px;
+
+    margin: 0 auto 16px;
+
+    padding: 14px 18px;
+
+    border-left: 2px solid rgba(255, 228, 31, 0.25);
+
+    background: rgba(255, 255, 255, 0.02);
+
+    font-family: 'JetBrains Mono', monospace;
+
+    font-size: 12px;
+
+    line-height: 1.75;
+
+    color: rgba(255, 255, 255, 0.62);
+}
+
+.source-card .source-meta {
+
+    display: block;
+
+    margin-bottom: 7px;
+
+    font-size: 9.5px;
+
+    letter-spacing: 0.24em;
+
+    text-transform: uppercase;
+
+    color: rgba(255, 228, 31, 0.5);
+}
+
+/* Respect users who would rather not be moved. */
+@media (prefers-reduced-motion: reduce) {
+
+    .star { animation: none; opacity: 0.35; }
+
+    #transmission-label::after { animation: none; content: '...'; }
+}
+
+</style>
+
+</head>
+
+<body class="bg-black text-white selection:bg-yellow-500/30 selection:text-yellow-200">
+
+<!-- =========================
+     BACKGROUND
+========================= -->
+
+<div class="star-container" id="starField"></div>
+
+<div class="grain-overlay"></div>
+
+<!-- =========================
+     MAIN UI
+========================= -->
+
+<main class="relative z-10 w-full px-6 flex flex-col items-center justify-center" id="main-shell">
+
+<section class="w-full max-w-2xl flex flex-col items-center text-center">
+
+<!-- LOGO -->
+
+<div class="perspective-container mb-4">
+
+<div
+    class="star-wars-logo"
+    id="logo-container"
+>
+
+<h1
+    class="logo-text"
+    id="loremind-logo"
+>
+    LOREMIND.
+</h1>
+
+</div>
+
+</div>
+
+<!-- SEARCH -->
+
+<div class="w-full perspective-container">
+
+<div class="star-wars-logo w-full relative group">
+
+<div
+    class="absolute -inset-0.5 bg-white/5 blur opacity-30 group-hover:opacity-60 transition duration-1000 rounded-full"
+></div>
+
+<div
+    class="relative flex items-center overflow-hidden transition-colors rounded-full bg-black border border-white/10 focus-within:border-white/30"
+>
+
+<div class="flex items-center justify-center pl-6">
+
+<span class="material-symbols-outlined text-white/40">
+search
+</span>
+
+</div>
+
+<input
+    id="search-input"
+    autocomplete="off"
+    class="w-full bg-transparent border-none focus:ring-0 text-lg font-mono text-white px-6 py-5 outline-none text-center"
+    placeholder="Search the archives..."
+    spellcheck="false"
+    type="text"
+/>
+
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+</main>
+
+<!-- =========================
+     CRAWL
+========================= -->
+
+<section id="crawl-section">
+
+<div id="crawl-perspective">
+
+<div id="crawl-text-plane">
+
+<div id="crawl-text"></div>
+
+</div>
+
+</div>
+
+</section>
+
+<!-- =========================
+     TRANSMISSION (loading)
+========================= -->
+
+<section id="transmission">
+
+<div id="transmission-label">Consulting the archives</div>
+
+<div id="transmission-stream"></div>
+
+</section>
+
+<!-- =========================
+     STATIC ANSWER (short replies)
+========================= -->
+
+<section id="static-answer"></section>
+
+<!-- NEW QUERY BUTTON -->
+<button id="new-query-btn">&#8592; New Query</button>
+
+<!-- SOURCES -->
+<button id="sources-toggle">Sources</button>
+
+<div id="sources-panel"></div>
+
+<!-- =========================
+     STARFIELD JS
+========================= -->
+
+<script>
+
+const starField =
+    document.getElementById('starField');
+
+const starCount = 4000;
+
+for (let i = 0; i < starCount; i++) {
+
+    const star =
+        document.createElement('div');
+
+    star.className = 'star';
+
+    const x = Math.random() * 100;
+    const y = Math.random() * 100;
+
+    const size =
+        Math.random() * 1.8 + 0.2;
+
+    const duration =
+        Math.random() * 5 + 3;
+
+    const delay =
+        Math.random() * 7;
+
+    star.style.left = `${x}%`;
+    star.style.top = `${y}%`;
+
+    star.style.width = `${size}px`;
+    star.style.height = `${size}px`;
+
+    star.style.setProperty(
+        '--duration',
+        `${duration}s`
+    );
+
+    star.style.animationDelay =
+        `${delay}s`;
+
+    starField.appendChild(star);
+}
+
+</script>
+
+<!-- =========================
+     API + INTERACTION
+========================= -->
+
+<script src="js/app.js"></script>
+
+</body>
+
+</html>

@@ -131,6 +131,10 @@ OLLAMA_HOST = _env("LOREMIND_OLLAMA_HOST", "http://localhost:11434")
 GROQ_MODEL = _env("LOREMIND_GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_API_KEY = _env("GROQ_API_KEY", "")
 
+# Overridable so the provider can be pointed at a mock for tests, or at any
+# other OpenAI-compatible endpoint (Cerebras, OpenRouter, a local vLLM).
+GROQ_BASE_URL = _env("LOREMIND_GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
+
 MAX_OUTPUT_TOKENS = _env_int("LOREMIND_MAX_OUTPUT_TOKENS", 500)
 TEMPERATURE = _env_float("LOREMIND_TEMPERATURE", 0.7)
 NUM_CTX = _env_int("LOREMIND_NUM_CTX", 8192)

@@ -7,6 +7,12 @@ Guarantees this module enforces, each of which was previously violated:
 * BM25 and the vector store search the *same* chunk list;
 * if the reranker says nothing is relevant, we say so instead of handing an
   irrelevant context to the model and letting it improvise.
+
+Both models run through fastembed (ONNX) rather than sentence-transformers
+(PyTorch). Same weights, and verified numerically equivalent: query embeddings
+agree to cosine 0.999998 and cross-encoder logits agree to three decimals across
+the calibration set. Dropping torch takes the deployed image from 3.6GB to a size
+that fits a free tier. See compare_backends.py.
 """
 
 from __future__ import annotations
@@ -15,10 +21,11 @@ import logging
 import threading
 
 import numpy as np
+from fastembed import TextEmbedding
+from fastembed.rerank.cross_encoder import TextCrossEncoder
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
 from rank_bm25 import BM25Okapi
-from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from backend import config
 from backend.corpus import Chunk, load_chunks, tokenize
@@ -31,6 +38,12 @@ _FINGERPRINT_KEY = "__loremind_index_fingerprint__"
 
 class IndexMismatch(RuntimeError):
     """The collection was built with different settings than we are querying with."""
+
+
+def _unit(vector) -> np.ndarray:
+    array = np.asarray(vector, dtype=np.float32)
+    norm = float(np.linalg.norm(array))
+    return array / norm if norm else array
 
 
 class Retriever:
@@ -47,14 +60,14 @@ class Retriever:
         # BM25 over the identical chunk list the vector store holds.
         self._bm25 = BM25Okapi([tokenize(c.text) for c in self.chunks])
 
-        log.info("loading embedding model %s", config.EMBED_MODEL)
-        self.embedder = SentenceTransformer(config.EMBED_MODEL)
+        cache = str(config.MODEL_CACHE_DIR) if config.MODEL_CACHE_DIR else None
 
-        # Renamed in sentence-transformers 5.x; support both.
-        get_dim = getattr(
-            self.embedder, "get_embedding_dimension", None
-        ) or self.embedder.get_sentence_embedding_dimension
-        actual_dim = get_dim()
+        log.info("loading embedding model %s", config.EMBED_MODEL)
+        self.embedder = TextEmbedding(config.EMBED_MODEL, cache_dir=cache)
+
+        # Probe the real output width rather than trusting the config, so a model
+        # swap cannot silently produce vectors the collection will not accept.
+        actual_dim = len(self._embed_texts(["dimension probe"])[0])
         if actual_dim != config.EMBED_DIM:
             raise IndexMismatch(
                 f"{config.EMBED_MODEL} produces {actual_dim}-dim vectors but "
@@ -62,10 +75,22 @@ class Retriever:
             )
 
         log.info("loading reranker %s", config.RERANK_MODEL)
-        self.reranker = CrossEncoder(config.RERANK_MODEL)
+        self.reranker = TextCrossEncoder(config.RERANK_MODEL, cache_dir=cache)
 
         self.client = self._connect()
         self._ensure_index()
+
+    # ------------------------------------------------------------ models
+
+    def _embed_texts(self, texts: list[str]) -> list[np.ndarray]:
+        """Embed passages. fastembed returns a generator of raw vectors."""
+        return [_unit(v) for v in self.embedder.embed(texts)]
+
+    def _embed_query(self, query: str) -> list[float]:
+        # bge-* models expect a retrieval instruction on queries only. Note that
+        # fastembed's query_embed() does NOT apply it (verified: cosine 0.96
+        # against the prefixed vector), so it is applied explicitly here.
+        return self._embed_texts([config.EMBED_QUERY_PREFIX + query])[0].tolist()
 
     # ------------------------------------------------------------ index
 
@@ -77,10 +102,19 @@ class Retriever:
                 api_key=config.QDRANT_API_KEY or None,
                 timeout=15,
             )
-        # Embedded mode: no server, no container, no hosting cost.
+        # Embedded mode: no server, no container, no hosting cost. Note this
+        # takes an exclusive lock on the directory, so only one process at a
+        # time may use it — hence a single uvicorn worker.
         config.QDRANT_PATH.mkdir(parents=True, exist_ok=True)
         log.info("using embedded qdrant at %s", config.QDRANT_PATH)
-        return QdrantClient(path=str(config.QDRANT_PATH))
+        try:
+            return QdrantClient(path=str(config.QDRANT_PATH))
+        except RuntimeError as exc:
+            raise RuntimeError(
+                f"{config.QDRANT_PATH} is locked by another process. Embedded Qdrant "
+                f"allows a single accessor: stop the running server before reindexing, "
+                f"or set LOREMIND_QDRANT_URL to use a Qdrant server."
+            ) from exc
 
     def _stored_fingerprint(self) -> str | None:
         try:
@@ -121,12 +155,7 @@ class Retriever:
 
     def build_index(self) -> int:
         """(Re)build the collection from the canonical chunk list."""
-        vectors = self.embedder.encode(
-            [c.text for c in self.chunks],
-            batch_size=32,
-            show_progress_bar=False,
-            normalize_embeddings=True,
-        )
+        vectors = self._embed_texts([c.text for c in self.chunks])
 
         self.client.recreate_collection(
             collection_name=config.COLLECTION_NAME,
@@ -152,21 +181,14 @@ class Retriever:
 
     # -------------------------------------------------------- retrieval
 
-    def _embed_query(self, query: str) -> list[float]:
-        # bge-* models expect the retrieval instruction on queries only.
-        return self.embedder.encode(
-            config.EMBED_QUERY_PREFIX + query,
-            normalize_embeddings=True,
-        ).tolist()
-
     def retrieve(self, query: str) -> tuple[str, list[dict], bool]:
         """Return (context, sources, grounded).
 
         ``grounded`` is False when the best cross-encoder score falls below the
         threshold, meaning the corpus does not answer this question.
         """
-        # sentence-transformers and BM25 are not documented as thread-safe and
-        # this is CPU-bound anyway; serialise to keep memory and latency stable.
+        # The ONNX sessions and BM25 are not documented as thread-safe and this
+        # is CPU-bound anyway; serialise to keep memory and latency stable.
         with self._lock:
             candidates: dict[int, Chunk] = {}
 
@@ -193,7 +215,7 @@ class Retriever:
                 return "", [], False
 
             ordered = list(candidates.values())
-            scores = self.reranker.predict([[query, c.text] for c in ordered])
+            scores = list(self.reranker.rerank(query, [c.text for c in ordered]))
 
             ranked = sorted(
                 zip(ordered, (float(s) for s in scores)),
@@ -232,6 +254,7 @@ class Retriever:
             "chunks": len(self.chunks),
             "embed_model": config.EMBED_MODEL,
             "rerank_model": config.RERANK_MODEL,
+            "runtime": "onnx",
             "mode": "server" if config.QDRANT_URL else "embedded",
         }
 
@@ -245,9 +268,9 @@ _init_lock = threading.Lock()
 def get_retriever() -> Retriever:
     """Build the retriever on first use.
 
-    Loading ~250MB of models at import time made the module impossible to import
-    for tests or tooling, and turned a transient vector-store outage at boot into
-    a crashed worker rather than a degraded one.
+    Loading the models at import time made the module impossible to import for
+    tests or tooling, and turned a transient vector-store outage at boot into a
+    crashed worker rather than a degraded one.
     """
     global _retriever
     if _retriever is None:

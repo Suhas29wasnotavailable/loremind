@@ -1,0 +1,24 @@
+# Render Blueprint. In Render: New -> Blueprint -> pick this repo.
+# Signs in with GitHub, so no separate account and no card for the free plan.
+services:
+  - type: web
+    name: loremind
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api
+    envVars:
+      # sync:false makes Render prompt for the value instead of storing it here.
+      - key: GROQ_API_KEY
+        sync: false
+      # Render's free plan is 512MB / 0.1 CPU. These keep peak RSS at ~450MB.
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: ORT_NUM_THREADS
+        value: "1"
+      - key: LOREMIND_MAX_CONCURRENT
+        value: "2"
+      # Render terminates TLS upstream, so the real client IP arrives in
+      # X-Forwarded-For; without this every visitor shares one rate-limit bucket.
+      - key: LOREMIND_TRUST_PROXY_HEADERS
+        value: "1"

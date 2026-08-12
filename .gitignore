@@ -14,6 +14,7 @@ __pycache__/
 # Embedded Qdrant index — rebuilt from the corpus at startup
 .qdrant_local/
 qdrant_storage/
+.model_cache/
 
 # Model cache
 .cache/

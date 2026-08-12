@@ -12,6 +12,7 @@ __pycache__/
 .qdrant_local/
 qdrant_storage/
 .cache/
+.model_cache/
 
 .git/
 .gitignore
@@ -28,3 +29,4 @@ calibrate.py
 regression_test.py
 test_providers.py
 mock_groq.py
+compare_backends.py

@@ -16,7 +16,9 @@ backend/
   api/main.py        FastAPI; also serves the frontend
   data/              starwars_lore.txt
 calibrate.py         choose the grounding threshold from data
+compare_backends.py  torch-vs-ONNX equivalence check
 regression_test.py   asserts the audited failures stay fixed
+render.yaml          Render Blueprint for one-click deploy
 ```
 
 ## Run it locally
@@ -62,20 +64,40 @@ docker run -p 7860:7860 -e GROQ_API_KEY=gsk_... loremind
 # -> http://localhost:7860
 ```
 
-### Hugging Face Spaces (free CPU tier)
+Measured on the built image:
 
-The free tier gives 2 vCPU and 16GB RAM, which comfortably fits the embedding
-model and reranker. Generation is delegated to Groq, so no GPU is needed.
+| | |
+|---|---|
+| image size | 849MB |
+| cold start to serving | 2s (models and index are baked in) |
+| idle RSS | 340MB |
+| peak RSS, 6 concurrent under a 512MB cap | 450MB, no OOM |
+| query latency | ~1.5s |
+
+### Render (free plan, signs in with GitHub)
+
+`render.yaml` is a Blueprint, so Render configures itself from the repo.
 
 1. Get a free Groq key: <https://console.groq.com/keys>
-2. Create a **Docker** Space: <https://huggingface.co/new-space>
-3. In the Space, **Settings → Variables and secrets**, add secret `GROQ_API_KEY`
-4. Push:
+2. <https://render.com> → **Sign in with GitHub** (no separate account, no card)
+3. **New → Blueprint** → select this repo → Apply
+4. Render prompts for `GROQ_API_KEY` (declared `sync: false`, so it is never
+   committed). Paste it.
+
+The free plan sleeps after 15 minutes idle; the next request pays a cold start.
+
+### Hugging Face Spaces (free CPU tier)
+
+A better fit if you have an account — 2 vCPU and 16GB RAM, and it sleeps only
+after 48 hours rather than 15 minutes.
+
+1. Create a **Docker** Space: <https://huggingface.co/new-space>
+2. **Settings → Variables and secrets** → add secret `GROQ_API_KEY`
+3. Push:
 
 ```bash
 hf auth login                                   # needs a write token
 git remote add space https://huggingface.co/spaces/<user>/loremind
-cp README-hf.md README-space.md                 # Spaces needs the front-matter
 git push space main
 ```
 
@@ -132,6 +154,19 @@ Short answers are shown statically rather than crawled for 45 seconds.
 
 **Sources are shown.** They were computed, streamed and discarded, which made
 answers impossible for a reader to check.
+
+**Retrieval runs on ONNX, not PyTorch.** Same two model weights, via `fastembed`.
+Verified equivalent before switching: query embeddings agree with the
+sentence-transformers versions to cosine 0.999998, and cross-encoder logits agree
+to three decimals across the calibration set, so the grounding threshold did not
+need recalibrating (`compare_backends.py`). Dropping torch took the image from
+3.6GB to 849MB and cold start from ~30s to 2s, which is what makes a 512MB free
+tier viable.
+
+**Embedded Qdrant takes an exclusive directory lock.** Only one process may use
+it at a time, which is why the container runs a single uvicorn worker and why
+reindexing requires stopping the server. Set `LOREMIND_QDRANT_URL` to use a
+Qdrant server if you ever need concurrent accessors.
 
 ## Tests
 

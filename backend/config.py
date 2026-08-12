@@ -71,7 +71,13 @@ CHUNK_STRIDE = _env_int("LOREMIND_CHUNK_STRIDE", 5)
 # fails loudly instead of silently degrading retrieval.
 EMBED_MODEL = _env("LOREMIND_EMBED_MODEL", "BAAI/bge-small-en-v1.5")
 EMBED_DIM = _env_int("LOREMIND_EMBED_DIM", 384)
-RERANK_MODEL = _env("LOREMIND_RERANK_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+# ONNX export of cross-encoder/ms-marco-MiniLM-L-6-v2. Same weights: logits agree
+# with the PyTorch version to three decimals (see compare_backends.py).
+RERANK_MODEL = _env("LOREMIND_RERANK_MODEL", "Xenova/ms-marco-MiniLM-L-6-v2")
+
+# Where fastembed keeps downloaded ONNX models. Set explicitly in the container
+# so the download happens at build time rather than on the first request.
+MODEL_CACHE_DIR = Path(_env("LOREMIND_MODEL_CACHE_DIR", str(PROJECT_DIR / ".model_cache")))
 
 # bge-* models are trained with an asymmetric instruction: queries get this
 # prefix, passages get none. Omitting it measurably degrades recall.
@@ -80,7 +86,9 @@ EMBED_QUERY_PREFIX = _env(
     "Represent this sentence for searching relevant passages: ",
 )
 
-INDEX_FINGERPRINT = f"{EMBED_MODEL}|dim={EMBED_DIM}|lines={CHUNK_LINES}|stride={CHUNK_STRIDE}|v2"
+INDEX_FINGERPRINT = (
+    f"{EMBED_MODEL}|onnx|dim={EMBED_DIM}|lines={CHUNK_LINES}|stride={CHUNK_STRIDE}|v3"
+)
 
 # ---------------------------------------------------------------- vector store
 

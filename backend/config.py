@@ -109,7 +109,19 @@ AUTO_INDEX = _env("LOREMIND_AUTO_INDEX", "1") not in {"0", "false", "False", ""}
 
 SEMANTIC_TOP_K = _env_int("LOREMIND_SEMANTIC_TOP_K", 12)
 BM25_TOP_K = _env_int("LOREMIND_BM25_TOP_K", 12)
-FINAL_TOP_K = _env_int("LOREMIND_FINAL_TOP_K", 6)
+FINAL_TOP_K = _env_int("LOREMIND_FINAL_TOP_K", 5)
+
+# How many fused candidates reach the cross-encoder. It is ~98% of retrieval
+# cost and scales linearly with this number, so it dominates latency on a
+# CPU-throttled host. Measured with bench_candidates.py: reranking the top 8 by
+# RRF gives an identical grounding separation to reranking all ~20 (on-corpus min
+# 2.51, off-corpus max -6.72 either way) for 2.6x less work. Below 6 the margin
+# starts to narrow.
+RERANK_CANDIDATES = _env_int("LOREMIND_RERANK_CANDIDATES", 8)
+
+# Reciprocal Rank Fusion damping. 60 is the value from the original RRF paper and
+# is insensitive enough that tuning it is not worthwhile at this corpus size.
+RRF_K = _env_int("LOREMIND_RRF_K", 60)
 
 # Grounding gate, applied to the best cross-encoder score. Calibrated with
 # calibrate.py over 22 answerable and 10 unanswerable questions: answerable

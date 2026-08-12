@@ -190,7 +190,8 @@ class Retriever:
         # The ONNX sessions and BM25 are not documented as thread-safe and this
         # is CPU-bound anyway; serialise to keep memory and latency stable.
         with self._lock:
-            candidates: dict[int, Chunk] = {}
+            dense_rank: dict[int, int] = {}
+            bm25_rank: dict[int, int] = {}
 
             hits = self.client.query_points(
                 collection_name=config.COLLECTION_NAME,
@@ -204,17 +205,32 @@ class Retriever:
                     continue
                 idx = payload.get("index")
                 if isinstance(idx, int) and 0 <= idx < len(self.chunks):
-                    candidates[idx] = self.chunks[idx]
+                    dense_rank.setdefault(idx, len(dense_rank))
 
             bm25_scores = self._bm25.get_scores(tokenize(query))
             for idx in np.argsort(bm25_scores)[::-1][: config.BM25_TOP_K]:
                 if bm25_scores[idx] > 0:
-                    candidates[int(idx)] = self.chunks[int(idx)]
+                    bm25_rank.setdefault(int(idx), len(bm25_rank))
 
-            if not candidates:
+            if not dense_rank and not bm25_rank:
                 return "", [], False
 
-            ordered = list(candidates.values())
+            # Fuse the two rankings with RRF and rerank only the strongest few.
+            # Feeding every candidate to the cross-encoder was ~98% of retrieval
+            # latency for no measurable gain in grounding accuracy.
+            fused: dict[int, float] = {}
+            for idx in set(dense_rank) | set(bm25_rank):
+                score = 0.0
+                if idx in dense_rank:
+                    score += 1.0 / (config.RRF_K + dense_rank[idx])
+                if idx in bm25_rank:
+                    score += 1.0 / (config.RRF_K + bm25_rank[idx])
+                fused[idx] = score
+
+            shortlist = sorted(fused, key=lambda i: fused[i], reverse=True)[
+                : config.RERANK_CANDIDATES
+            ]
+            ordered = [self.chunks[i] for i in shortlist]
             scores = list(self.reranker.rerank(query, [c.text for c in ordered]))
 
             ranked = sorted(
@@ -238,8 +254,8 @@ class Retriever:
         ]
 
         log.info(
-            "query=%r candidates=%d best=%.2f grounded=%s",
-            query[:80], len(candidates), best, grounded,
+            "query=%r reranked=%d best=%.2f grounded=%s",
+            query[:80], len(ordered), best, grounded,
         )
         return context, sources, grounded
 

@@ -136,6 +136,11 @@ answers impossible for a reader to check.
 ## Tests
 
 ```bash
-python regression_test.py   # needs the server running
-python calibrate.py         # threshold separation report
+python regression_test.py   # 19 checks; needs the server running
+python test_providers.py    # Groq path against a mock, no API key needed
+python calibrate.py         # grounding-threshold separation report
 ```
+
+`test_providers.py` matters because the deployed configuration uses Groq while
+local development uses Ollama — without it, a bug in the Groq client would only
+appear in production.

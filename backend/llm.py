@@ -92,7 +92,7 @@ async def _stream_groq(prompt: str) -> AsyncIterator[str]:
         "Content-Type": "application/json",
     }
 
-    url = "https://api.groq.com/openai/v1/chat/completions"
+    url = f"{config.GROQ_BASE_URL}/chat/completions"
     timeout = httpx.Timeout(config.GENERATION_TIMEOUT, connect=10.0)
 
     async with httpx.AsyncClient(timeout=timeout) as client:

@@ -110,6 +110,7 @@ The Space's root `README.md` must carry the YAML front-matter from
 |---|---|---|
 | `LOREMIND_CORS_ORIGINS` | `*` | your own origin |
 | `LOREMIND_TRUST_PROXY_HEADERS` | `0` | `1` behind Spaces/Fly/Render, so rate limiting sees the real client IP rather than the proxy's |
+| `LOREMIND_TRUSTED_PROXY_HOPS` | `1` | the number of proxies that append to `X-Forwarded-For`. Check `/whoami` after deploying — if `source` is not `cf-connecting-ip`, this must match reality or the limiter attributes requests to the wrong address |
 | `LOREMIND_RATE_LIMIT_PER_MINUTE` | `12` | lower if the Groq free quota is a concern |
 
 ## Design notes
@@ -154,6 +155,17 @@ Short answers are shown statically rather than crawled for 45 seconds.
 
 **Sources are shown.** They were computed, streamed and discarded, which made
 answers impossible for a reader to check.
+
+**Client identity comes only from headers a proxy vouches for.** `X-Forwarded-For`
+is a list whose left-hand side is whatever the caller sent; each trusted proxy
+appends the peer it actually saw on the right. Reading index 0 — the obvious
+implementation, and the one deployed first — reads attacker-supplied data: ten
+concurrent requests with ten forged values all succeeded against a limiter that
+allows five. `CF-Connecting-IP` is preferred because Cloudflare overwrites it and
+rejects client attempts to set it (verified: forging it returns 403 before the
+request reaches the app), falling back to indexing `X-Forwarded-For` from the
+right. `/whoami` reports which header was used, because getting this wrong is
+silent — the limiter keeps returning 429s, just for the wrong identity.
 
 **Retrieval runs on ONNX, not PyTorch.** Same two model weights, via `fastembed`.
 Verified equivalent before switching: query embeddings agree with the

@@ -30,3 +30,5 @@ regression_test.py
 test_providers.py
 mock_groq.py
 compare_backends.py
+bench_rerankers.py
+bench_candidates.py

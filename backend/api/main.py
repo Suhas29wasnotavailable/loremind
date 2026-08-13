@@ -132,18 +132,40 @@ async def _event_stream(query: str):
         yield _sse("done", {"grounded": False})
 
 
-def _client_id(request: Request) -> str:
-    if config.TRUST_PROXY_HEADERS:
-        forwarded = request.headers.get("x-forwarded-for", "")
-        if forwarded:
-            # Left-most entry is the original client.
-            return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+def _client_id(request: Request) -> tuple[str, str]:
+    """Resolve the rate-limiting identity. Returns (identity, source).
+
+    Only data a trusted proxy vouches for may be used. X-Forwarded-For is a list
+    the client controls the left of: each proxy appends the peer address it
+    actually saw, so the trustworthy entries are the right-most ones. Reading
+    index 0 — which this originally did — reads whatever the caller sent, letting
+    anyone rotate the header and bypass the limiter entirely.
+    """
+    if not config.TRUST_PROXY_HEADERS:
+        return (request.client.host if request.client else "unknown"), "peer"
+
+    # Cloudflare overwrites this with the real client address and drops any
+    # client-supplied copy, so it cannot be forged from outside.
+    vouched = request.headers.get(config.CLIENT_IP_HEADER, "").strip()
+    if vouched:
+        return vouched, config.CLIENT_IP_HEADER
+
+    forwarded = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+    if forwarded:
+        hops = max(1, config.TRUSTED_PROXY_HOPS)
+        # Count from the right; clamp so a short list cannot fall back to the
+        # client-controlled left-hand entries.
+        if len(forwarded) >= hops:
+            return forwarded[-hops], f"xff[-{hops}]"
+        return forwarded[-1], "xff[-1]"
+
+    return (request.client.host if request.client else "unknown"), "peer"
 
 
 @app.post("/query")
 async def query_loremind(payload: QueryRequest, request: Request):
-    allowed, retry_after = _limiter.check(_client_id(request))
+    client, _ = _client_id(request)
+    allowed, retry_after = _limiter.check(client)
     if not allowed:
         return JSONResponse(
             {"detail": "Too many requests. The archives need a moment."},
@@ -175,6 +197,27 @@ async def health():
     generation = await llm.health()
     ok = bool(index.get("ok")) and bool(generation.get("ok"))
     return {"ok": ok, "index": index, "generation": generation}
+
+
+@app.get("/whoami")
+def whoami(request: Request):
+    """Which address the rate limiter attributes this request to, and why.
+
+    Exists because getting proxy-header handling wrong is silent: the limiter
+    still returns 429s, just for the wrong identity. Reveals only the caller's
+    own address.
+    """
+    client, source = _client_id(request)
+    return {
+        "client": client,
+        "source": source,
+        "trust_proxy_headers": config.TRUST_PROXY_HEADERS,
+        "trusted_proxy_hops": config.TRUSTED_PROXY_HOPS,
+        "forwarded_chain_length": len(
+            [p for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+        ),
+        "vouched_header_present": bool(request.headers.get(config.CLIENT_IP_HEADER)),
+    }
 
 
 @app.get("/api")

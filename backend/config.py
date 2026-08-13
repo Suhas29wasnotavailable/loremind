@@ -175,9 +175,24 @@ MAX_CONCURRENT_QUERIES = _env_int("LOREMIND_MAX_CONCURRENT", 4)
 RATE_LIMIT_PER_MINUTE = _env_int("LOREMIND_RATE_LIMIT_PER_MINUTE", 12)
 RATE_LIMIT_BURST = _env_int("LOREMIND_RATE_LIMIT_BURST", 5)
 
-# Trust X-Forwarded-For only behind a proxy that sets it (Spaces, Fly, Render do).
-# Off by default, because a client can otherwise spoof its own identity.
+# Trust forwarding headers only behind a proxy that sets them (Spaces, Fly, Render
+# do). Off by default: with it on, header handling must be exactly right or a
+# client can forge its own identity and escape the rate limiter.
 TRUST_PROXY_HEADERS = _env("LOREMIND_TRUST_PROXY_HEADERS", "0") not in {"0", "false", "False", ""}
+
+# Number of proxies between the client and this app that append to
+# X-Forwarded-For. The client controls the LEFT of that list; each trusted proxy
+# appends the peer it actually saw on the RIGHT. So the real client address is
+# the Nth entry counting from the right, and reading the left-most entry — as
+# this originally did — reads attacker-supplied data. Verified against the live
+# deployment: rotating the header gave 10/10 requests through a limiter that
+# allows 5.
+TRUSTED_PROXY_HOPS = _env_int("LOREMIND_TRUSTED_PROXY_HOPS", 1)
+
+# Cloudflare sets this to the real client address and strips any client-supplied
+# copy, so it is preferred over X-Forwarded-For when present. Render serves
+# through Cloudflare, so it normally is.
+CLIENT_IP_HEADER = _env("LOREMIND_CLIENT_IP_HEADER", "cf-connecting-ip").lower()
 
 # Comma-separated list, or "*" to allow any origin.
 CORS_ORIGINS = [o.strip() for o in _env("LOREMIND_CORS_ORIGINS", "*").split(",") if o.strip()]

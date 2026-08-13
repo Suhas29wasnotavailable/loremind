@@ -173,6 +173,82 @@ for i in range(50):
 check("bookkeeping is bounded", len(rl3._buckets) <= 10, f"{len(rl3._buckets)} buckets")
 
 
+print("\n=== CLIENT IDENTITY (was: X-Forwarded-For spoofing bypassed the limiter) ===")
+# Verified against the live deployment before the fix: rotating X-Forwarded-For
+# let 10/10 requests through a limiter that allows 5.
+import importlib
+import os
+
+from starlette.datastructures import Headers
+
+os.environ["LOREMIND_TRUST_PROXY_HEADERS"] = "1"
+os.environ["LOREMIND_TRUSTED_PROXY_HOPS"] = "1"
+from backend import config as _cfg
+
+importlib.reload(_cfg)
+from backend.api import main as _main
+
+importlib.reload(_main)
+
+
+class _FakeClient:
+    host = "10.0.0.1"
+
+
+class _FakeRequest:
+    def __init__(self, headers):
+        self.headers = Headers(headers)
+        self.client = _FakeClient()
+
+
+# One proxy hop: the client forged the left entry, the proxy appended the truth.
+ident, src = _main._client_id(_FakeRequest({"x-forwarded-for": "203.0.113.9, 198.51.100.7"}))
+check("uses the proxy-appended entry, not the client's", ident == "198.51.100.7", f"{ident} via {src}")
+
+# With one trusted hop, a single-entry chain is the address that hop appended,
+# so it is trusted by definition. Documented explicitly because it is the case
+# that would become unsafe behind a proxy that does not append — which is why
+# TRUSTED_PROXY_HOPS must match the actual deployment.
+ident, src = _main._client_id(_FakeRequest({"x-forwarded-for": "198.51.100.7"}))
+check("single-entry chain resolves to that entry", ident == "198.51.100.7", f"{ident} via {src}")
+
+# Two trusted hops: the real client sits one further left.
+os.environ["LOREMIND_TRUSTED_PROXY_HOPS"] = "2"
+importlib.reload(_cfg)
+importlib.reload(_main)
+ident, src = _main._client_id(
+    _FakeRequest({"x-forwarded-for": "203.0.113.9, 198.51.100.7, 192.0.2.1"}))
+check("honours a 2-hop chain", ident == "198.51.100.7", f"{ident} via {src}")
+
+# A chain shorter than the configured hop count must not fall through to the
+# client-controlled left-hand side.
+ident, src = _main._client_id(_FakeRequest({"x-forwarded-for": "203.0.113.9"}))
+check("short chain clamps to the right-most entry", src == "xff[-1]", f"{ident} via {src}")
+
+os.environ["LOREMIND_TRUSTED_PROXY_HOPS"] = "1"
+importlib.reload(_cfg)
+importlib.reload(_main)
+
+# Cloudflare's header wins, and cannot be forged from outside.
+ident, src = _main._client_id(_FakeRequest(
+    {"cf-connecting-ip": "198.51.100.7", "x-forwarded-for": "203.0.113.9, 1.1.1.1"}))
+check("prefers the Cloudflare-vouched header", ident == "198.51.100.7" and "cf" in src,
+      f"{ident} via {src}")
+
+# Rotating the forged prefix must NOT produce distinct identities.
+idents = {
+    _main._client_id(_FakeRequest({"x-forwarded-for": f"203.0.113.{i}, 198.51.100.7"}))[0]
+    for i in range(10)
+}
+check("rotating the forged prefix yields ONE identity", len(idents) == 1, str(idents))
+
+os.environ["LOREMIND_TRUST_PROXY_HEADERS"] = "0"
+importlib.reload(_cfg)
+importlib.reload(_main)
+ident, src = _main._client_id(_FakeRequest({"x-forwarded-for": "203.0.113.9"}))
+check("ignores the header entirely when trust is off", ident == "10.0.0.1", f"{ident} via {src}")
+
+
 print("\n" + "=" * 62)
 print(f"  {len(passed)} passed, {len(failed)} failed")
 if failed:

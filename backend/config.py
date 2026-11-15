@@ -6,6 +6,7 @@ different models, and because both happened to be 384-dimensional, Qdrant
 accepted the mismatched vectors without complaint and returned nonsense.
 """
 
+import logging
 import os
 from pathlib import Path
 
@@ -41,11 +42,26 @@ def _env(name: str, default: str) -> str:
     return os.environ.get(name, default).strip()
 
 
-def _env_int(name: str, default: int) -> int:
-    try:
-        return int(os.environ.get(name, default))
-    except (TypeError, ValueError):
+def _env_int(name: str, default: int, minimum: int = 1) -> int:
+    """Read an integer setting, falling back to ``default`` if it is unusable.
+
+    Values below ``minimum`` are rejected rather than passed through: a zero
+    here does not fail loudly, it hangs the chunker (stride 0), deadlocks every
+    query (concurrency 0) or divides by zero deep inside a request (RRF k 0,
+    rate 0), which is far harder to trace back to a typo in the environment.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
         return default
+    try:
+        value = int(raw)
+    except ValueError:
+        logging.getLogger(__name__).warning("%s=%r is not an integer; using %d", name, raw, default)
+        return default
+    if value < minimum:
+        logging.getLogger(__name__).warning("%s=%d is below %d; using %d", name, value, minimum, default)
+        return default
+    return value
 
 
 def _env_float(name: str, default: float) -> float:
